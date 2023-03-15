@@ -59,7 +59,8 @@ class Settings(BaseModel):
 preset_moves = {
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': 'e4',
     'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2': 'f4',
-    'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1': 'e6'
+    'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1': 'e5',
+    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1': 'd5'
 }
 
 def get_driver(driver_path: str):
@@ -99,7 +100,7 @@ def standardize_field(df:pd.DataFrame, column: str, standardization: str, color:
         df[f'{column}_standardized'] = df[column]
     elif standardization == 'quantile':
         df[f'{column}_standardized'] = QuantileTransformer().fit_transform(df[column].values.reshape(-1, 1))
-    elif 'min_max_inversed_for_black':
+    elif standardization =='min_max_inversed_for_black':
         df[f'{column}_standardized'] = MinMaxScaler().fit_transform(df[column].values.reshape(-1, 1))
         if color == 'b':
             df[f'{column}_standardized'] = 1 - df[f'{column}_standardized']
@@ -126,7 +127,7 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
     driver.find_element(By.CSS_SELECTOR, '#main-wrap > main > div.analyse__underboard > div > div.pair > input').send_keys(position)
     driver.find_element(By.CSS_SELECTOR,
                         '#main-wrap > main > div.analyse__underboard > div > div.pair > input').send_keys(Keys.ENTER)
-    time.sleep(3)
+    time.sleep(1)
     soup = BeautifulSoup(driver.page_source)
     moves_table = soup.find('table', {'class': 'moves'})
     moves = moves_table.find_all('tr')
@@ -139,7 +140,10 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
         san_move = move.find_all('td')[0].text
         perc_played = float(move.find_all('td')[1]['title'].replace('%', ''))/100
         avg_rating = int(move.find_all('td')[2]['title'].replace(',', '').split(':')[-1].strip())
-        win_perc = float(move.find_all('td')[2].find_all('span')[0]['style'].split(':')[-1].strip().replace('%', ''))/100
+        if color == 'w':
+            win_perc = float(move.find_all('td')[2].find_all('span')[0]['style'].split(':')[-1].strip().replace('%', ''))/100
+        if color == 'b':
+            win_perc = float(move.find_all('td')[2].find_all('span')[2]['style'].split(':')[-1].strip().replace('%', ''))/100
 
         move_dicts.append(dict(uci_move=uci_move,
                                san_move=san_move,
@@ -151,6 +155,11 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
         move.find_all('td')
 
     move_df = pd.DataFrame.from_dict(move_dicts)
+
+    if color == active_color:
+        move_df = move_df[move_df['perc_played'] >= settings.min_perc_for_own_color_move]
+    else:
+        move_df = move_df[move_df['perc_played'] >= settings.min_move_perc_for_opposing_color]
 
     if position in preset_moves and color == active_color:
         move_df = move_df[move_df['san_move'] == preset_moves[position]]
@@ -187,6 +196,8 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
 
     returned_moves = list()
 
+    print(f'picked moved: {position} {move_df.iloc[0].to_dict()}')
+
     for idx, row in move_df.iterrows():
         board = chess.Board(position)
         board.push_san(row["san_move"])
@@ -203,6 +214,7 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
                                     average_rating=row['avg_rating'],
                                     stock_fish=row['engine_score'],
                                     play_percentage=row['perc_played'])))
+
     return returned_moves
 
 
@@ -230,32 +242,42 @@ def play(color: str):
     settings = get_settings()
     driver = get_analysis_board(settings.driver_path)
 
+    try:
+        moves = load_calculated_moves(settings.output_directory, color)
+    except:
+        moves = dict()
     moves = dict()
 
     while True:
-        if len(list(moves.keys())) == 0:
-            moves[settings.starting_board_config] = play_moves(driver,
-                                                               settings.starting_board_config,
-                                                               settings=settings,
-                                                               color=color)
-            continue
+        try:
+            if len(list(moves.keys())) == 0:
+                moves[settings.starting_board_config] = play_moves(driver,
+                                                                   settings.starting_board_config,
+                                                                   settings=settings,
+                                                                   color=color)
+                continue
 
-        moves_with_unsolved_boards = list()
-        for bc, move_list in moves.items():
-            for move in move_list:
-                if move.post_move_board_state_fen not in moves.keys() and move.turn_count < settings.max_move:
-                    moves_with_unsolved_boards.append(move)
+            moves_with_unsolved_boards = list()
+            for bc, move_list in moves.items():
+                for move in move_list:
+                    if move.post_move_board_state_fen not in moves.keys() and move.turn_count < settings.max_move:
+                        moves_with_unsolved_boards.append(move)
 
-        if len(moves_with_unsolved_boards) == 0:
-            break
+            if len(moves_with_unsolved_boards) == 0:
+                break
 
-        picked_move_with_unsolved_board = random.choice(moves_with_unsolved_boards)
-        moves[picked_move_with_unsolved_board.post_move_board_state_fen] = play_moves(driver,
-                   picked_move_with_unsolved_board.post_move_board_state_fen,
-                   settings=settings,
-                   color=color)
-        save_calculated_moves(moves, settings.output_directory, color)
-
+            moves_with_unsolved_boards = sorted(moves_with_unsolved_boards, key = lambda x: int(x.parent_board_state_fen.split(' ')[-1]))
+            picked_move_with_unsolved_board = moves_with_unsolved_boards[0]
+            moves[picked_move_with_unsolved_board.post_move_board_state_fen] = play_moves(driver,
+                       picked_move_with_unsolved_board.post_move_board_state_fen,
+                       settings=settings,
+                       color=color)
+            save_calculated_moves(moves, settings.output_directory, color)
+            print(f'boards saved: {len(moves.keys())}')
+        except Exception as e:
+            print(f'{e}')
+            time.sleep(20)
+            driver = get_analysis_board(settings.driver_path)
 
 
 def engine_test():

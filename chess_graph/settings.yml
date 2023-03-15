@@ -1,12 +1,12 @@
 max_moves_for_own_color: 1
-min_perc_for_own_color_move: .05
-max_moves_for_opposing_color: 5
+min_perc_for_own_color_move: .1
+max_moves_for_opposing_color: 8
 min_move_perc_for_opposing_color: .1
 max_move: 6
-move_selection_rating_weight: .2
-move_selection_win_perc_weight: .6
-move_selection_stockfish_weight: 0.1
-move_selection_popularity_weight: -.01
+move_selection_rating_weight: .04
+move_selection_win_perc_weight: .88
+move_selection_stockfish_weight: .04
+move_selection_popularity_weight: .04
 
 move_selection_rating_preprocessing: quantile
 move_selection_win_perc_preprocessing: none
