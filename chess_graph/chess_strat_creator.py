@@ -223,8 +223,7 @@ def load_calculated_moves(save_dir: str, color: str):
     for k in move_dict.keys():
         move_dict_copy_l = copy.deepcopy(move_dict[k])
         move_dict[k] = [Move(**i) for i in move_dict_copy_l]
-
-
+    return move_dict
 
 
 def play(color: str):
