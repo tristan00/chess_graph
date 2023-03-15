@@ -1,0 +1,20 @@
+max_moves_for_own_color: 1
+min_perc_for_own_color_move: .05
+max_moves_for_opposing_color: 5
+min_move_perc_for_opposing_color: .1
+max_move: 6
+move_selection_rating_weight: .2
+move_selection_win_perc_weight: .6
+move_selection_stockfish_weight: 0.1
+move_selection_popularity_weight: -.01
+
+move_selection_rating_preprocessing: quantile
+move_selection_win_perc_preprocessing: none
+move_selection_stockfish_preprocessing: min_max_inversed_for_black
+move_selection_popularity_preprocessing: none
+
+starting_board_config: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+
+driver_path: /Users/tristandelforge/Documents/web_driver/chromedriver_mac64 (4)/chromedriver
+engine_path: /usr/local/Cellar/stockfish/15.1/bin/stockfish
+output_directory: /Users/tristandelforge/Documents/chess
