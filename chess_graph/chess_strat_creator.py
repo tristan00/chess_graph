@@ -2,6 +2,7 @@ import copy
 import json
 import random
 import time
+import traceback
 from typing import List, Dict
 
 import yaml
@@ -32,6 +33,7 @@ class Move(BaseModel):
     play_percentage: int
     average_rating: int
     stock_fish: float
+    checkmate: int
 
 class Settings(BaseModel):
     max_moves_for_own_color: int
@@ -54,13 +56,15 @@ class Settings(BaseModel):
     starting_board_config: str
     engine_path: str
     output_directory: str
+    min_games: int
 
 
 preset_moves = {
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': 'e4',
     'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2': 'f4',
     'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1': 'e5',
-    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1': 'd5'
+    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1': 'd5',
+    'rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2': 'c4'
 }
 
 def get_driver(driver_path: str):
@@ -123,11 +127,18 @@ def get_active_color(fen: str) -> str:
 
 
 def play_moves(driver, position: str, settings: Settings, color: str) -> List[Move]:
+    print(position)
+
+    board = chess.Board(position)
+
+    if board.is_checkmate():
+        return list()
+
     driver.find_element(By.CSS_SELECTOR, '#main-wrap > main > div.analyse__underboard > div > div.pair > input').click()
     driver.find_element(By.CSS_SELECTOR, '#main-wrap > main > div.analyse__underboard > div > div.pair > input').send_keys(position)
     driver.find_element(By.CSS_SELECTOR,
                         '#main-wrap > main > div.analyse__underboard > div > div.pair > input').send_keys(Keys.ENTER)
-    time.sleep(1)
+    time.sleep(2)
     soup = BeautifulSoup(driver.page_source)
     moves_table = soup.find('table', {'class': 'moves'})
     moves = moves_table.find_all('tr')
@@ -136,40 +147,51 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
 
     move_dicts = list()
     for move in moves[1:-1]:
-        uci_move = move['data-uci']
-        san_move = move.find_all('td')[0].text
-        perc_played = float(move.find_all('td')[1]['title'].replace('%', ''))/100
-        avg_rating = int(move.find_all('td')[2]['title'].replace(',', '').split(':')[-1].strip())
-        if color == 'w':
-            win_perc = float(move.find_all('td')[2].find_all('span')[0]['style'].split(':')[-1].strip().replace('%', ''))/100
-        if color == 'b':
-            win_perc = float(move.find_all('td')[2].find_all('span')[2]['style'].split(':')[-1].strip().replace('%', ''))/100
+        try:
+            uci_move = move['data-uci']
+            san_move = move.find_all('td')[0].text
+            perc_played = float(move.find_all('td')[1]['title'].replace('%', ''))/100
 
-        move_dicts.append(dict(uci_move=uci_move,
-                               san_move=san_move,
-                               perc_played=perc_played,
-                               avg_rating=avg_rating,
-                               win_perc=win_perc
-                               ))
+            number_of_games = int(move.find_all('td')[1].text.replace(',', '').strip())
+            if number_of_games <= settings.min_games:
+                continue
 
-        move.find_all('td')
+            avg_rating = int(move.find_all('td')[2]['title'].replace(',', '').split(':')[-1].strip())
+            if color == 'w':
+                win_perc = float(move.find_all('td')[2].find_all('span')[0]['style'].split(':')[-1].strip().replace('%', ''))/100
+            elif color == 'b':
+                win_perc = float(move.find_all('td')[2].find_all('span')[2]['style'].split(':')[-1].strip().replace('%', ''))/100
+            else:
+                print(f'invalid color: {color}')
+            move_dicts.append(dict(uci_move=uci_move,
+                                   san_move=san_move,
+                                   perc_played=perc_played,
+                                   avg_rating=avg_rating,
+                                   win_perc=win_perc
+                                   ))
+
+            move.find_all('td')
+        except:
+            traceback.print_exc()
 
     move_df = pd.DataFrame.from_dict(move_dicts)
 
-    if color == active_color:
-        move_df = move_df[move_df['perc_played'] >= settings.min_perc_for_own_color_move]
-    else:
-        move_df = move_df[move_df['perc_played'] >= settings.min_move_perc_for_opposing_color]
-
     if position in preset_moves and color == active_color:
         move_df = move_df[move_df['san_move'] == preset_moves[position]]
+    else:
+        if color == active_color:
+            move_df = move_df[move_df['perc_played'] >= settings.min_perc_for_own_color_move]
+        else:
+            move_df = move_df[move_df['perc_played'] >= settings.min_move_perc_for_opposing_color]
 
     move_df['engine_score'] = 0
 
     for idx, row in move_df.iterrows():
         board = chess.Board(position)
+        board.push_san(row["san_move"])
         engine = chess.engine.SimpleEngine.popen_uci(settings.engine_path)
-        engine_score = engine.analyse(board, limit=chess.engine.Limit(time=1.0))['score'].relative.cp
+
+        engine_score = engine.analyse(board, limit=chess.engine.Limit(depth=24))['score'].relative.score(mate_score=100000)
         move_df.loc[idx, 'engine_score'] = int(engine_score)
         engine.quit()
 
@@ -201,6 +223,7 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
     for idx, row in move_df.iterrows():
         board = chess.Board(position)
         board.push_san(row["san_move"])
+        board.is_checkmate()
         san_move: str
         uci_move: str
         returned_moves.append(Move(**dict(move_id=f'{position}_{row["uci_move"]}',
@@ -213,7 +236,8 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
                                     win_prob=row['win_perc'],
                                     average_rating=row['avg_rating'],
                                     stock_fish=row['engine_score'],
-                                    play_percentage=row['perc_played'])))
+                                    play_percentage=row['perc_played'],
+                                    checkmate = int(board.is_checkmate()))))
 
     return returned_moves
 
@@ -275,7 +299,7 @@ def play(color: str):
             save_calculated_moves(moves, settings.output_directory, color)
             print(f'boards saved: {len(moves.keys())}')
         except Exception as e:
-            print(f'{e}')
+            traceback.print_exc()
             time.sleep(20)
             driver = get_analysis_board(settings.driver_path)
 
@@ -292,5 +316,5 @@ def engine_test():
     engine.quit()
 
 if __name__ == '__main__':
-    play('b')
+    # play('b')
     play('w')
