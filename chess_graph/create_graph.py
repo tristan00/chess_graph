@@ -1,4 +1,4 @@
-from chess_graph.chess_strat_creator import load_calculated_moves, get_settings, get_active_color
+from chess_strat_creator import load_calculated_moves, get_settings, get_active_color
 import graphviz
 
 def get_board(fen: str):

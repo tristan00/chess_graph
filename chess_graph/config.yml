@@ -16,6 +16,6 @@ move_selection_popularity_preprocessing: none
 
 starting_board_config: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
-driver_path: C:\Users\Tristan\Documents\chess\chromedriver.exe
-engine_path: C:\Users\Tristan\Documents\chess\stockfish-windows-2022-x86-64-avx2.exe
-output_directory: "C:\Users\Tristan\Documents\chess\output"
+driver_path: r"C:\Users\Tristan\Documents\chess\chromedriver.exe"
+engine_path: r"C:\Users\Tristan\Documents\chess\stockfish-windows-2022-x86-64-avx2.exe"
+output_directory: r"C:\Users\Tristan\Documents\chess\output"

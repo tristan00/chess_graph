@@ -18,7 +18,6 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import chess
 import chess.engine
-from stockfish import Stockfish
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
 
 class Move(BaseModel):
@@ -94,7 +93,7 @@ def get_analysis_board(driver_path: str):
 
 
 def get_settings() -> Settings:
-    with open('settings.yml', 'r') as file:
+    with open(r'config.yml', 'r') as file:
         settings = yaml.safe_load(file)
         return Settings(**settings)
 
