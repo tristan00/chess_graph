@@ -38,5 +38,5 @@ def print_game(fen):
     moves = load_calculated_moves(settings.output_directory, get_active_color(fen))
 
 if __name__ == '__main__':
-    # get_board('rnbqkbnr/pppp1ppp/8/4P3/8/8/PPP1PPPP/RNBQKBNR b KQkq - 0 2')
-    make_graph('w')
+    get_board('rnbqkbnr/pppp1ppp/8/4P3/8/8/PPP1PPPP/RNBQKBNR b KQkq - 0 2')
+    # make_graph('w')
