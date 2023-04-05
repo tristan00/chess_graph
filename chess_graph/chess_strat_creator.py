@@ -33,6 +33,7 @@ class Move(BaseModel):
     average_rating: int
     stock_fish: float
     checkmate: int
+    move_count: int
 
 class Settings(BaseModel):
     max_moves_for_own_color: int
@@ -124,6 +125,15 @@ def get_active_color(fen: str) -> str:
     else:
         raise Exception(f'Invalid fen {fen}')
 
+def get_move_count(fen: str) -> int:
+    turn_count = int(fen.split(' ')[-1])
+    move_count = turn_count*2
+
+    if get_active_color(fen):
+        move_count += 1
+
+    return move_count
+
 
 def play_moves(driver, position: str, settings: Settings, color: str) -> List[Move]:
     print(position)
@@ -143,6 +153,7 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
     moves = moves_table.find_all('tr')
 
     active_color = get_active_color(position)
+    move_count = get_move_count(position) + 1
 
     move_dicts = list()
     for move in moves[1:-1]:
@@ -236,7 +247,8 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
                                     average_rating=row['avg_rating'],
                                     stock_fish=row['engine_score'],
                                     play_percentage=row['perc_played'],
-                                    checkmate = int(board.is_checkmate()))))
+                                    checkmate = int(board.is_checkmate()),
+                                    move_count=move_count)))
 
     return returned_moves
 
@@ -265,10 +277,10 @@ def play(color: str):
     settings = get_settings()
     driver = get_analysis_board(settings.driver_path)
 
-    try:
-        moves = load_calculated_moves(settings.output_directory, color)
-    except:
-        moves = dict()
+    # try:
+    #     moves = load_calculated_moves(settings.output_directory, color)
+    # except:
+    #     moves = dict()
     moves = dict()
 
     while True:
@@ -289,8 +301,10 @@ def play(color: str):
             if len(moves_with_unsolved_boards) == 0:
                 break
 
-            moves_with_unsolved_boards = sorted(moves_with_unsolved_boards, key = lambda x: int(x.parent_board_state_fen.split(' ')[-1]))
-            picked_move_with_unsolved_board = moves_with_unsolved_boards[0]
+            # moves_with_unsolved_boards = sorted(moves_with_unsolved_boards, key = lambda x: int(x.parent_board_state_fen.split(' ')[-1]))
+            # picked_move_with_unsolved_board = moves_with_unsolved_boards[0]
+
+            picked_move_with_unsolved_board = random.choice(moves_with_unsolved_boards)
             moves[picked_move_with_unsolved_board.post_move_board_state_fen] = play_moves(driver,
                        picked_move_with_unsolved_board.post_move_board_state_fen,
                        settings=settings,
