@@ -3,7 +3,7 @@ import json
 import random
 import time
 import traceback
-from typing import List, Dict
+from typing import List, Dict, Set
 
 import yaml
 from selenium import webdriver
@@ -34,6 +34,7 @@ class Move(BaseModel):
     stock_fish: float
     checkmate: int
     move_count: int
+    child_board_state_fens: Set[str]
 
 class Settings(BaseModel):
     max_moves_for_own_color: int
@@ -248,7 +249,8 @@ def play_moves(driver, position: str, settings: Settings, color: str) -> List[Mo
                                     stock_fish=row['engine_score'],
                                     play_percentage=row['perc_played'],
                                     checkmate = int(board.is_checkmate()),
-                                    move_count=move_count)))
+                                    move_count=move_count,
+                                    child_board_state_fens=set())))
 
     return returned_moves
 
@@ -309,6 +311,9 @@ def play(color: str):
                        picked_move_with_unsolved_board.post_move_board_state_fen,
                        settings=settings,
                        color=color)
+
+            # moves[picked_move_with_unsolved_board.parent_board_state_fen].child_board_state_fens = {i.post_move_board_state_fen for i in moves[picked_move_with_unsolved_board.post_move_board_state_fen]}
+
             save_calculated_moves(moves, settings.output_directory, color)
             print(f'boards saved: {len(moves.keys())}')
         except Exception as e:
